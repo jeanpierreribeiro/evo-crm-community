@@ -1,0 +1,321 @@
+# =============================================================================
+# Evo CRM Community — Arquivo de Orquestração para PRODUÇÃO
+# =============================================================================
+# Utiliza as imagens Docker geradas pelo GitHub Actions no GHCR (ghcr.io)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infraestrutura de Dados
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE:-evo_community}
+      POSTGRES_USER: ${POSTGRES_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Senha do Postgres obrigatoria em producao}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    restart: always
+    command: ["sh", "-c", "redis-server --requirepass ${REDIS_PASSWORD:?Senha do Redis obrigatoria} --appendonly yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-alpine
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    restart: always
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Senha do Clickhouse obrigatoria}
+      CLICKHOUSE_DB: default
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "default", "--password", "${CLICKHOUSE_PASSWORD}", "--query", "SELECT 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Serviços da Aplicação (Imagens do seu GHCR)
+  # ---------------------------------------------------------------------------
+  evo-auth:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-auth-service-community:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      RAILS_ENV: production
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      POSTGRES_HOST: postgres
+      RUN_MIGRATIONS: "false"
+    volumes:
+      - auth_storage:/rails/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: bash -c "bundle exec rails db:migrate && bundle exec rails s -p 3001 -b 0.0.0.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  evo-auth-sidekiq:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-auth-service-community:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: .env
+    environment:
+      RAILS_ENV: production
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+      POSTGRES_HOST: postgres
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: bash -c "bundle exec sidekiq"
+
+  evo-crm:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-ai-crm-community:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      RAILS_ENV: production
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      POSTGRES_HOST: postgres
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+      EVO_AI_CORE_SERVICE_URL: http://evo-core:5555
+      EVO_AI_ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BOT_RUNTIME_URL: http://evo-bot-runtime:8080
+      BOT_RUNTIME_SECRET: ${BOT_RUNTIME_SECRET}
+      BOT_RUNTIME_POSTBACK_BASE_URL: http://evo-crm:3000
+    volumes:
+      - crm_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evo-auth:
+        condition: service_healthy
+    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  evo-crm-sidekiq:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-ai-crm-community:${IMAGE_TAG:-latest}
+    restart: always
+    env_file: .env
+    environment:
+      RAILS_ENV: production
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      POSTGRES_HOST: postgres
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+      EVO_AI_CORE_SERVICE_URL: http://evo-core:5555
+      EVO_AI_ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      BOT_RUNTIME_URL: http://evo-bot-runtime:8080
+      BOT_RUNTIME_SECRET: ${BOT_RUNTIME_SECRET}
+      BOT_RUNTIME_POSTBACK_BASE_URL: http://evo-crm:3000
+      RUN_MIGRATIONS: "false"
+    volumes:
+      - crm_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+
+  evo-core:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-ai-core-service-community:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "5555:5555"
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USERNAME:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DATABASE:-evo_community}
+      DB_SSLMODE: disable
+      PORT: "5555"
+      EVOLUTION_BASE_URL: http://evo-crm:3000
+      EVO_AUTH_BASE_URL: http://evo-auth:3001
+      AI_PROCESSOR_URL: http://evo-processor:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5555/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  evo-processor:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-ai-processor-community:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      POSTGRES_CONNECTION_STRING: postgresql://${POSTGRES_USERNAME:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-evo_community}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_SSL: "false"
+      HOST: 0.0.0.0
+      PORT: "8000"
+      EVO_AI_CRM_URL: http://evo-crm:3000
+      CORE_SERVICE_URL: http://evo-core:5555/api/v1
+      EVO_AUTH_BASE_URL: http://evo-auth:3001
+    volumes:
+      - processor_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evo-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  evo-bot-runtime:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-bot-runtime:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      LISTEN_ADDR: 0.0.0.0:8080
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      AI_PROCESSOR_URL: http://evo-processor:8000
+      BOT_RUNTIME_SECRET: ${BOT_RUNTIME_SECRET}
+      MEDIA_HOST_ALLOWLIST: ${MEDIA_HOST_ALLOWLIST:-localhost}
+    depends_on:
+      redis:
+        condition: service_healthy
+      evo-processor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  evo-flow:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-flow-community:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "3334:3334"
+    environment:
+      NODE_ENV: production
+      RUN_MODE: api
+      QUEUE_MODE: direct
+      STORAGE_MODE: clickhouse
+      WRITE_MODE: ch-sync
+      PORT: "3334"
+      BROKER_TYPE: rabbitmq
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      AUTH_APIKEY_INTEGRATION_LOCAL: ${AUTH_APIKEY_INTEGRATION_LOCAL}
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+      EVO_AUTH_VALIDATE_TOKEN_ENDPOINT: /api/v1/auth/validate
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_DATABASE: evo_campaign
+      CLICKHOUSE_USERNAME: default
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_TABLE: contact_events
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: "4"
+      POSTGRES_DB_HOST: postgres
+      POSTGRES_DB_PORT: "5432"
+      POSTGRES_DB_USERNAME: ${POSTGRES_USERNAME:-postgres}
+      POSTGRES_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB_DATABASE: evo_campaign
+      EVOAI_CRM_BASE_URL: http://evo-crm:3000
+      EVOAI_CRM_API_TOKEN: ${EVOAI_CRM_API_TOKEN}
+      LOG_LEVEL: error
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  evo-frontend:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-ai-frontend-community:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      VITE_API_URL: ${BACKEND_URL:?BACKEND_URL obrigatoria em producao}
+      VITE_AUTH_API_URL: ${AUTH_URL:?AUTH_URL obrigatoria em producao}
+      VITE_WS_URL: ${BACKEND_URL:?BACKEND_URL obrigatoria em producao}
+      VITE_EVOAI_API_URL: ${CORE_URL:-http://localhost:5555}
+      VITE_AGENT_PROCESSOR_URL: ${PROCESSOR_URL:-http://localhost:8000}
+      VITE_EVOFLOW_API_URL: ${FLOW_URL:-http://localhost:3334}
+    depends_on:
+      evo-auth:
+        condition: service_healthy
+      evo-crm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  clickhouse_data:
+  processor_logs:
+  auth_storage:
+  crm_storage:

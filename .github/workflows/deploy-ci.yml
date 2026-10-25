@@ -1,0 +1,148 @@
+name: "Build & Push Docker Images (CI/CD)"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_build_all:
+        description: "Forçar build de todos os serviços (ignorar detecção de mudanças)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  detect-changes:
+    name: "Detectar Serviços Alterados"
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      crm: ${{ steps.filter.outputs.crm }}
+      auth: ${{ steps.filter.outputs.auth }}
+      processor: ${{ steps.filter.outputs.processor }}
+      core: ${{ steps.filter.outputs.core }}
+      bot_runtime: ${{ steps.filter.outputs.bot_runtime }}
+      flow: ${{ steps.filter.outputs.flow }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      force_all: ${{ steps.check-force.outputs.force_all }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Check Force Build
+        id: check-force
+        run: |
+          if [ "${{ inputs.force_build_all }}" = "true" ]; then
+            echo "force_all=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "force_all=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'evo-ai-frontend-community/**'
+            crm:
+              - 'evo-ai-crm-community/**'
+            auth:
+              - 'evo-auth-service-community/**'
+            processor:
+              - 'evo-ai-processor-community/**'
+            core:
+              - 'evo-ai-core-service-community/**'
+            bot_runtime:
+              - 'evo-bot-runtime/**'
+            flow:
+              - 'evo-flow-community/**'
+            gateway:
+              - 'nginx/**'
+
+  build-and-push:
+    name: Build ${{ matrix.name }}
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: frontend
+            name: evo-ai-frontend-community
+            context: ./evo-ai-frontend-community
+            dockerfile: ./evo-ai-frontend-community/Dockerfile
+          - id: crm
+            name: evo-ai-crm-community
+            context: ./evo-ai-crm-community
+            dockerfile: ./evo-ai-crm-community/docker/Dockerfile
+          - id: auth
+            name: evo-auth-service-community
+            context: ./evo-auth-service-community
+            dockerfile: ./evo-auth-service-community/Dockerfile
+          - id: processor
+            name: evo-ai-processor-community
+            context: ./evo-ai-processor-community
+            dockerfile: ./evo-ai-processor-community/Dockerfile
+          - id: core
+            name: evo-ai-core-service-community
+            context: ./evo-ai-core-service-community
+            dockerfile: ./evo-ai-core-service-community/Dockerfile
+          - id: bot_runtime
+            name: evo-bot-runtime
+            context: ./evo-bot-runtime
+            dockerfile: ./evo-bot-runtime/Dockerfile
+          - id: flow
+            name: evo-flow-community
+            context: ./evo-flow-community
+            dockerfile: ./evo-flow-community/Dockerfile
+          - id: gateway
+            name: evo-crm-gateway
+            context: ./nginx
+            dockerfile: ./nginx/Dockerfile
+
+    # Executa se a flag force_all for verdadeira OU se o serviço específico teve alterações
+    if: |
+      needs.detect-changes.outputs.force_all == 'true' ||
+      needs.detect-changes.outputs[matrix.id] == 'true'
+
+    steps:
+      - name: Checkout Code com Submódulos
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Preparar Tags da Imagem
+        id: meta
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER}/${{ matrix.name }}"
+          SHA_SHORT="${GITHUB_SHA:0:7}"
+          
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "tags=${IMAGE}:latest,${IMAGE}:${SHA_SHORT}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push Imagem Docker
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
