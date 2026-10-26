@@ -32,3 +32,6 @@
 [submodule "evo-scheduling-service"]
 	path = evo-scheduling-service
 	url = https://github.com/jeanpierreribeiro/evo-scheduling-service.git
+[submodule "evo-projects-service"]
+	path = evo-projects-service
+	url = https://github.com/jeanpierreribeiro/evo-projects-service.git
