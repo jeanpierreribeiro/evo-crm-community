@@ -40,6 +40,8 @@ server {
     error_log /var/log/nginx/error.log;
 
     client_max_body_size 100M;
+    client_header_buffer_size 16k;
+    large_client_header_buffers 8 64k;
 
     # =============================================================================
     # CORS is handled by each backend service via CORS_ORIGINS env var.
@@ -86,6 +88,8 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         client_max_body_size 100M;
+    client_header_buffer_size 16k;
+    large_client_header_buffers 8 64k;
     }
 
     # Super Admin catch-all → Auth Service
@@ -441,6 +445,8 @@ server {
         # WhatsApp media chega base64 inline no webhook (Evolution) — 10M rejeitava
         # documentos/PDF com 413. Alinha com o limite de 100M do resto do gateway (EVO-1966).
         client_max_body_size 100M;
+    client_header_buffer_size 16k;
+    large_client_header_buffers 8 64k;
     }
 
     # =============================================================================
