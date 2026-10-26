@@ -29,3 +29,6 @@
 [submodule "evo-flow-community"]
 	path = evo-flow-community
 	url = https://github.com/jeanpierreribeiro/evo-flow-community.git
+[submodule "evo-scheduling-service"]
+	path = evo-scheduling-service
+	url = https://github.com/jeanpierreribeiro/evo-scheduling-service.git

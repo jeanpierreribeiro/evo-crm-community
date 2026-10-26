@@ -402,6 +402,32 @@ services:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
+  # Scheduling Service (Node.js / Fastify / Prisma) — Port 3002
+  # ---------------------------------------------------------------------------
+  evo-scheduling:
+    build:
+      context: ./evo-scheduling-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3012:3002"
+    environment:
+      PORT: "3002"
+      HOST: 0.0.0.0
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USERNAME:-postgres}:${POSTGRES_PASSWORD:-evoai_dev_password}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=scheduling
+      CORS_ORIGIN: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3002/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
   # Frontend (React / Vite / Nginx) — Port 5173
   # ---------------------------------------------------------------------------
   evo-frontend:
@@ -416,6 +442,7 @@ services:
       VITE_EVOAI_API_URL: ${VITE_EVOAI_API_URL:-http://localhost:5565}
       VITE_AGENT_PROCESSOR_URL: ${VITE_AGENT_PROCESSOR_URL:-http://localhost:8011}
       VITE_EVOFLOW_API_URL: ${VITE_EVOFLOW_API_URL:-http://localhost:3334}
+      VITE_SCHEDULING_API_URL: ${VITE_SCHEDULING_API_URL:-http://localhost:3012}
     ports:
       - "5173:80"
     depends_on:
