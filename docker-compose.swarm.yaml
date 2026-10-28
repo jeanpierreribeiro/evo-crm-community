@@ -673,7 +673,36 @@ services:
         constraints:
           - node.role == manager
 
-## --------------------------- ORION --------------------------- ##
+## --------------------------- PROJECTS --------------------------- ##
+
+  ## Mdulo de Projetos e Demandas (E1.8-d)
+  evocrm_projects:
+    image: ghcr.io/jeanpierreribeiro/evo-projects-service:latest
+    environment:
+      - PORT=3003
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://projects_app:projects_app_secret@evocrm_postgres:5432/evocrm?schema=projects
+      - JWT_SECRET_KEY=
+      - DOORKEEPER_JWT_ALGORITHM=hs256
+      - DOORKEEPER_JWT_ISS=evo-auth-service
+      - DOORKEEPER_JWT_AUD=evo-projects-service
+      - EVO_AUTH_SERVICE_URL=http://evocrm_auth:3001
+      - CORS_ORIGINS=https://SUBDOMAIN_FRONTEND,https://SUBDOMAIN_API
+      - REDIS_URL=redis://:evoai_redis_pass@evocrm_redis:6379
+      - PROJECTS_MCP_ENABLED=true
+      - PROJECTS_SHARING_ENABLED=true
+      - PROJECTS_UPLOADS_ENABLED=true
+      - PUBLIC_BASE_URL=https://SUBDOMAIN_FRONTEND
+    networks:
+      - evonet
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+## --------------------------- VOLUMES --------------------------- ##
 
 volumes:
   evocrm_processor_logs:

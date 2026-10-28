@@ -8,11 +8,12 @@ ENV AUTH_UPSTREAM=evo_auth:3001 \
     PROCESSOR_UPSTREAM=evo_processor:8000 \
     BOT_RUNTIME_UPSTREAM=evo_bot_runtime:8080 \
     SCHEDULING_UPSTREAM=evo-scheduling:3002 \
-    PROJECTS_UPSTREAM=evo-projects:3003
+    PROJECTS_UPSTREAM=evo-projects:3003 \
+    FINANCE_UPSTREAM=evo-finance:3004
 
 # Limit envsubst to the upstream vars so nginx's own $variables (e.g. $host,
 # $request_uri) are not touched at render time.
-ENV NGINX_ENVSUBST_FILTER="^(AUTH|CRM|CORE|PROCESSOR|BOT_RUNTIME|SCHEDULING|PROJECTS)_UPSTREAM$"
+ENV NGINX_ENVSUBST_FILTER="^(AUTH|CRM|CORE|PROCESSOR|BOT_RUNTIME|SCHEDULING|PROJECTS|FINANCE)_UPSTREAM$"
 
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 

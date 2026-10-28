@@ -428,6 +428,21 @@ services:
       start_period: 15s
 
   # ---------------------------------------------------------------------------
+  # Projects Migrations Job (One-off migrate deploy before replicas) - E1.1-b
+  # ---------------------------------------------------------------------------
+  evo-projects-migrate:
+    build:
+      context: ./evo-projects-service
+      dockerfile: Dockerfile
+    command: ["npx", "prisma", "migrate", "deploy"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${PROJECTS_MIGRATOR_USERNAME:-projects_migrator}:${PROJECTS_MIGRATOR_PASSWORD:-projects_migrator_dev_password}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=projects
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
   # Projects Service (Node.js / Fastify / Prisma / Kaneo Engine) — Port 3003
   # ---------------------------------------------------------------------------
   evo-projects:
@@ -436,18 +451,62 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3013:3003"
+      - "127.0.0.1:3013:3003"
     environment:
       PORT: "3003"
       HOST: 0.0.0.0
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${PROJECTS_APP_USERNAME:-projects_app}:${PROJECTS_APP_PASSWORD:-projects_app_dev_password}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=projects
+      JWT_SECRET_KEY: ${DOORKEEPER_JWT_SECRET_KEY:-a]i9F#k2$$Lm7Nq0R!sT4uW6xZ8bD1eG3hJ5oP7rV9yAcE2fH4jM6pS8vX0zB3dK5nQ7tU9wY1}
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3030"
+      REDIS_URL: redis://:${REDIS_PASSWORD:-evoai_redis_pass}@redis:6379
+      PROJECTS_MCP_ENABLED: "${PROJECTS_MCP_ENABLED:-true}"
+      PROJECTS_SHARING_ENABLED: "${PROJECTS_SHARING_ENABLED:-true}"
+      PROJECTS_UPLOADS_ENABLED: "${PROJECTS_UPLOADS_ENABLED:-true}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost:5173}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evo-projects-migrate:
+        condition: service_completed_successfully
+      evo-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Finance Service (Node.js / Fastify / Prisma / v3.1 Engine) — Port 3004
+  # ---------------------------------------------------------------------------
+  evo-finance:
+    build:
+      context: ./evo-finance-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3014:3004"
+    environment:
+      PORT: "3004"
+      HOST: 0.0.0.0
       NODE_ENV: development
-      DATABASE_URL: postgresql://${POSTGRES_USERNAME:-postgres}:${POSTGRES_PASSWORD:-evoai_dev_password}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=projects
-      CORS_ORIGIN: "*"
+      DATABASE_URL: postgresql://${POSTGRES_USERNAME:-postgres}:${POSTGRES_PASSWORD:-evoai_dev_password}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=finance
+      CORS_ORIGIN: "http://localhost:5173"
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+      FINANCE_DEV_AUTH: "1"
+      UPLOAD_DIR: "/app/storage/uploads"
+    volumes:
+      - finance_uploads:/app/storage/uploads
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:3003/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3004/health"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -470,6 +529,7 @@ services:
       VITE_EVOFLOW_API_URL: ${VITE_EVOFLOW_API_URL:-http://localhost:3334}
       VITE_SCHEDULING_API_URL: ${VITE_SCHEDULING_API_URL:-http://localhost:3012}
       VITE_PROJECTS_API_URL: ${VITE_PROJECTS_API_URL:-http://localhost:3013}
+      VITE_FINANCE_API_URL: ${VITE_FINANCE_API_URL:-http://localhost:3014}
     ports:
       - "5173:80"
     depends_on:
@@ -494,3 +554,4 @@ volumes:
   crm_cache:
   processor_logs:
   clickhouse_data:
+  finance_uploads:

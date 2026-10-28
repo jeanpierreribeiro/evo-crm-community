@@ -289,6 +289,55 @@ services:
       redis:
         condition: service_healthy
 
+  # ---------------------------------------------------------------------------
+  # Módulo de Projetos e Demandas (evo-projects-service / E1.8-d)
+  # ---------------------------------------------------------------------------
+  evo-projects-migrate:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-projects-service:${IMAGE_TAG:-latest}
+    restart: "no"
+    command: ["pnpm", "run", "migrate:deploy"]
+    environment:
+      DATABASE_URL: postgresql://${PROJECTS_MIGRATOR_USERNAME:-projects_migrator}:${PROJECTS_MIGRATOR_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=projects
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  evo-projects:
+    image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-projects-service:${IMAGE_TAG:-latest}
+    restart: always
+    expose:
+      - "3003"
+    environment:
+      PORT: "3003"
+      HOST: "0.0.0.0"
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${PROJECTS_APP_USERNAME:-projects_app}:${PROJECTS_APP_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-evo_community}?schema=projects
+      JWT_SECRET_KEY: ${DOORKEEPER_JWT_SECRET_KEY:?DOORKEEPER_JWT_SECRET_KEY obrigatoria em producao}
+      DOORKEEPER_JWT_ALGORITHM: hs256
+      DOORKEEPER_JWT_ISS: evo-auth-service
+      DOORKEEPER_JWT_AUD: evo-projects-service
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://jpros.local}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      PROJECTS_MCP_ENABLED: "${PROJECTS_MCP_ENABLED:-true}"
+      PROJECTS_SHARING_ENABLED: "${PROJECTS_SHARING_ENABLED:-true}"
+      PROJECTS_UPLOADS_ENABLED: "${PROJECTS_UPLOADS_ENABLED:-true}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-https://jpros.local}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evo-projects-migrate:
+        condition: service_completed_successfully
+      evo-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3003/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
   evo-frontend:
     image: ghcr.io/${DOCKER_IMAGE_OWNER:-jeanpierreribeiro}/evo-ai-frontend-community:${IMAGE_TAG:-latest}
     restart: always

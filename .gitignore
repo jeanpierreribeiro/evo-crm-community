@@ -7,10 +7,20 @@ _evo*
 .agents/*
 CLAUDE.md
 
-# Sibling repos cloned locally but not registered in .gitmodules. They were
+# Local storage for uploads / attachments
+storage/
+storage/**
+
 # accidentally tracked as orphan gitlinks before; ignore the dirs so nobody
 # re-adds them with `git add`.
 evolution-hub
 evo-ai-docs/
 evo-crm-enterprise/
 evo-assistant/
+
+# Editor & Temp files
+.cursor/
+.vite/
+.fuse_hidden*
+*.bak
+*-backup-*.md

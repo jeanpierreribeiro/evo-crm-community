@@ -51,15 +51,18 @@ http://localhost:5173/setup
 These are the **host** ports published by `docker-compose.yml` (the browser
 talks to them directly):
 
-| Service     | URL                       |
-| ----------- | ------------------------- |
-| Frontend    | http://localhost:5173     |
-| CRM API     | http://localhost:3010     |
-| Auth API    | http://localhost:3011     |
-| Core API    | http://localhost:5565     |
-| Processor   | http://localhost:8011     |
-| Bot Runtime | http://localhost:8092     |
-| Mailhog     | http://localhost:18025    |
+| Service      | URL                       |
+| ------------ | ------------------------- |
+| Frontend     | http://localhost:5173     |
+| Nginx Gateway| http://localhost:3030     |
+| CRM API      | http://localhost:3010     |
+| Auth API     | http://localhost:3011     |
+| Scheduling   | http://localhost:3012     |
+| Projects     | http://localhost:3013     |
+| Core API     | http://localhost:5565     |
+| Processor    | http://localhost:8011     |
+| Bot Runtime  | http://localhost:8092     |
+| Mailhog      | http://localhost:18025    |
 
 The frontend's `VITE_*` URLs in `.env.example` already point at these host
 ports — if they don't match, every API/WebSocket call fails with *connection
@@ -68,7 +71,7 @@ substitutes these into the built assets at **container start** (the entrypoint
 replaces `VITE_*_PLACEHOLDER` tokens), so changing one only needs
 `docker compose up -d --force-recreate evo-frontend` — no image rebuild.
 
-### Database seeding
+### Database seeding & migrations
 
 `make setup` runs `make seed`, which is the canonical flow:
 
@@ -76,8 +79,40 @@ replaces `VITE_*_PLACEHOLDER` tokens), so changing one only needs
 2. The auth service's migrations are **marked as applied** (the schema load
    already created their tables).
 3. Application seeds run for CRM and then auth.
+4. The projects service migrations run via the dedicated `evo-projects-migrate` container (`prisma migrate deploy` under the isolated `projects` schema with DDL user `projects_migrator`). In local dev or CI, it can also be run directly via `pnpm --dir evo-projects-service run db:migrate`.
 
 `setup.sh` performs the same sequence — keep the two in sync if you change one.
+
+### Projects Service: Storage, Attachments, and Backups
+
+The Projects submodule (`evo-projects-service`) includes secure file attachment storage:
+
+1. **Storage Directory (`PROJECTS_STORAGE_DIR`):**
+   - Configured via environment variable `PROJECTS_STORAGE_DIR` (defaults to `./.storage/attachments` in local development or `/app/.storage/attachments` in containerized environments).
+   - Ensure the runtime user (`projects_app` or node container user) has read and write permissions on this directory.
+2. **Attachment Limits & Nginx Configuration:**
+   - File size limit per upload is **20 MiB**.
+   - The Nginx Gateway (`nginx/default.conf.template`) includes a dedicated directive with `client_max_body_size 25M;` for the route `~ ^/api/v1/projects/tasks/[^/]+/attachments$` to allow multipart overhead without compromising the global 10M limit on other APIs.
+3. **Database Schema & Migrations:**
+   - Isolated under PostgreSQL schema `projects` (`?schema=projects`).
+   - Schema migrations run strictly through `prisma migrate deploy` using the DDL role `projects_migrator`.
+4. **Backup and Recovery:**
+   - **Database Backup:** Dump the `projects` schema with `pg_dump -U postgres -d evo_community -n projects -Fc -f projects_backup.dump`.
+   - **Storage Backup:** Periodically back up the volume/directory referenced by `PROJECTS_STORAGE_DIR`. Both the database records and physical files must be restored together for consistency.
+   - **Diagnostic Tooling:** Run `AttachmentDiagnosticService` to verify consistency between physical files on disk and records in the `TaskAttachment` table.
+
+### Projects Service: MCP Server and CRM Integrations
+
+1. **Enabling the MCP Server:**
+   - Set `PROJECTS_MCP_ENABLED=true` in `.env` to activate the Streamable HTTP endpoint (`POST /mcp` and `/api/v1/projects/mcp`).
+   - When disabled (`false`), all MCP endpoints immediately return `503 MCP_DISABLED`.
+2. **ServicePrincipal Credentials (`sp_*`):**
+   - Service credentials are generated via `IntegrationService.issueCredential(principalId)`.
+   - Secret keys follow the format `sp_<prefix>_<secret>` and are stored in the database exclusively as SHA-256 hashes.
+   - Grants (`IntegrationGrant`) dictate which tools (`allowedTools`) and whether sharing (`canShare`) are permitted per workspace.
+3. **CRM Integration Headers:**
+   - Authenticated runtimes (`evo-ai-processor-community` / `evo-bot-runtime`) inject confidential headers (`X-CRM-Instance-ID`, `X-CRM-Contact-ID`, `X-CRM-Conversation-ID`).
+   - Resolution strictly obeys DP14: ambiguous or missing links will return `AMBIGUOUS` or `NOT_FOUND` and will never write to the database.
 
 ### The Core service image
 
