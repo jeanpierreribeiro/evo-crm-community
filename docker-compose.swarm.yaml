@@ -519,6 +519,9 @@ services:
       - VITE_EVOAI_API_URL=https://SUBDOMAIN_API
       - VITE_AGENT_PROCESSOR_URL=https://SUBDOMAIN_API
       - VITE_WS_URL=https://SUBDOMAIN_API
+      - VITE_SCHEDULING_API_URL=https://SUBDOMAIN_API
+      - VITE_PROJECTS_API_URL=https://SUBDOMAIN_API
+      - VITE_FINANCE_API_URL=https://SUBDOMAIN_API
 
     deploy:
       placement:

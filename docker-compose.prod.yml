@@ -350,6 +350,9 @@ services:
       VITE_EVOAI_API_URL: ${CORE_URL:-http://localhost:5555}
       VITE_AGENT_PROCESSOR_URL: ${PROCESSOR_URL:-http://localhost:8000}
       VITE_EVOFLOW_API_URL: ${FLOW_URL:-http://localhost:3334}
+      VITE_SCHEDULING_API_URL: ${SCHEDULING_URL:-${BACKEND_URL}}
+      VITE_PROJECTS_API_URL: ${PROJECTS_URL:-${BACKEND_URL}}
+      VITE_FINANCE_API_URL: ${FINANCE_URL:-${BACKEND_URL}}
     depends_on:
       evo-auth:
         condition: service_healthy
