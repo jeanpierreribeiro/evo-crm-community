@@ -33,6 +33,7 @@ server {
     set $bot_runtime_service http://${BOT_RUNTIME_UPSTREAM};
     set $scheduling_service  http://${SCHEDULING_UPSTREAM};
     set $projects_service    http://${PROJECTS_UPSTREAM};
+    set $loans_service       http://${LOANS_UPSTREAM};
     set $finance_service     http://${FINANCE_UPSTREAM};
 
     underscores_in_headers on;
@@ -89,8 +90,6 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         client_max_body_size 100M;
-    client_header_buffer_size 16k;
-    large_client_header_buffers 8 64k;
     }
 
     # Super Admin catch-all → Auth Service
@@ -391,6 +390,19 @@ server {
     }
 
     # =============================================================================
+    # Loans Service Routes (independent domain)
+    # =============================================================================
+    location ~ ^/api/v1/loans(?:/|$) {
+        client_max_body_size 6M;
+        proxy_pass $loans_service$request_uri;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization $http_authorization;
+    }
+
+    # =============================================================================
     # Projects Service Routes (Kaneo Engine / Multi-Workspace / Gantt)
     # =============================================================================
     # MCP Streamable HTTP JSON-RPC 2.0 (Phase 4 - E4.3)
@@ -498,8 +510,6 @@ server {
         # WhatsApp media chega base64 inline no webhook (Evolution) — 10M rejeitava
         # documentos/PDF com 413. Alinha com o limite de 100M do resto do gateway (EVO-1966).
         client_max_body_size 100M;
-    client_header_buffer_size 16k;
-    large_client_header_buffers 8 64k;
     }
 
     # =============================================================================

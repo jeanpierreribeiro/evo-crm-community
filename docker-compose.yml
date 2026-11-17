@@ -519,6 +519,8 @@ services:
     build:
       context: ./evo-ai-frontend-community
       dockerfile: Dockerfile
+      args:
+        VITE_LOANS_UI_ENABLED: ${LOANS_UI_ENABLED:-true}
     restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3010}
@@ -529,6 +531,8 @@ services:
       VITE_EVOFLOW_API_URL: ${VITE_EVOFLOW_API_URL:-http://localhost:3334}
       VITE_SCHEDULING_API_URL: ${VITE_SCHEDULING_API_URL:-http://localhost:3012}
       VITE_PROJECTS_API_URL: ${VITE_PROJECTS_API_URL:-http://localhost:3013}
+      VITE_LOANS_API_URL: ${VITE_LOANS_API_URL:-http://localhost:3015}
+      VITE_LOANS_UI_ENABLED: ${LOANS_UI_ENABLED:-true}
       VITE_FINANCE_API_URL: ${VITE_FINANCE_API_URL:-http://localhost:3014}
     ports:
       - "5173:80"

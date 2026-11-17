@@ -35,3 +35,6 @@
 [submodule "evo-projects-service"]
 	path = evo-projects-service
 	url = https://github.com/jeanpierreribeiro/evo-projects-service.git
+[submodule "evo-finance-service"]
+	path = evo-finance-service
+	url = https://github.com/jeanpierreribeiro/evo-finance-service.git
