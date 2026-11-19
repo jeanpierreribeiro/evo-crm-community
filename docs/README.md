@@ -15,11 +15,13 @@ Bem-vindo ao diretório de documentação oficial do ecossistema **jprOS**.
 2. 📅 **[MODULO-AGENDA-ESPECIFICACAO-COMPLETA.md](./MODULO-AGENDA-ESPECIFICACAO-COMPLETA.md)**
    * **Especificação Técnica do Módulo de Agendamentos (`evo-scheduling-service`).**
    * Paradigma Headless, porting da engine do Cal.com, cálculo determinístico de slots anti-conflito, modelagem Prisma, API REST, telas no frontend, guardas de rota e Function Calling para agentes de IA no WhatsApp.
+   * **Novidades v2.0:** Segurança JWT de ponta a ponta (`jose`), travas concorrentes no banco, lista executiva com filtros avançados, links diretos para WhatsApp e motor de sumarização assíncrono em 8 blocos estratégicos via IA (OpenRouter, OpenAI e Gemini).
 
-3. 🤖 **[PLANEJAMENTO-AJUSTES-AGENDA-REUNIOES-IA.md](./PLANEJAMENTO-AJUSTES-AGENDA-REUNIOES-IA.md)**
-   * **Planejamento de Ajustes de Lista de Reuniões & Inteligência de Tópicos com IA.**
-   * Layout em lista horizontal com filtros avançados (`De`/`Até`, tipo, busca).
+3. 🤖 **[PLANEJAMENTO-AJUSTES-AGENDA-REUNIOES-IA.md](./PLANEJAMENTO-AJUSTES-AGENDA-REUNIOES-IA.md)** & **[AVALIACAO-AJUSTES-AGENDA-REUNIOES-IA.v2.md](./AVALIACAO-AJUSTES-AGENDA-REUNIOES-IA.v2.md)**
+   * **Planejamento e Avaliação de Ajustes de Lista de Reuniões & Inteligência de Tópicos com IA.**
+   * Layout em lista horizontal com filtros avançados (`De`/`Até`, tipo, busca debounced 300ms).
    * Tela de detalhes da reunião (`/scheduling/bookings/:id`) com extração de 8 blocos de tópicos via IA (OpenAI, OpenRouter e Gemini com Base URL personalizada ou conta integrada em `/settings/integrations`).
+   * Mitigações dos riscos arquiteturais R01 a R06 e validação de conformidade estrita (sem geração de tarefas).
 
 4. 🚀 **[SETUP-GUIDE.md](./SETUP-GUIDE.md)**
    * Guia passo a passo para inicialização da infraestrutura Docker local ou deploy em Docker Swarm.

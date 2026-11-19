@@ -152,3 +152,45 @@ The Projects service implements Optimistic Concurrency Control (OCC) using monot
 1. **Inviolable Invariant DP14:** If a CRM contact is mapped to more than one active workspace in the same CRM instance, the system returns `AMBIGUOUS` with the candidates count and refuses to perform write operations.
 2. **Resolution:** A workspace administrator must review `WorkspaceContactLink` configurations at `GET /workspaces/:id/crm/contact-links` and prune obsolete links or route the conversation through an exclusive inbox route (`WorkspaceInboxRoute` with `isExclusive: true`).
 
+## Projects Service: "Network Error" when Creating Workspaces or Calling Projects API in Production
+
+1. **Symptom:** Creating a new workspace from the UI (`/projects`) immediately shows a red "Network Error" toast without sending requests to the backend server.
+2. **Cause:** Hardcoded development URLs (`http://localhost:3013`) baked into compiled Vite frontend bundles (`index-*.js`), which fail DNS/connection when executed from client browsers or get blocked by Mixed Content protections (HTTP request from HTTPS site).
+3. **Resolution:**
+   - In production bundles (`/usr/share/nginx/html/assets/index-*.js`), replace all occurrences of `http://localhost:3013` with the canonical API host: `https://api-crm.jeanpierreribeiro.com.br` (and `http://localhost:3012` with the same base host).
+   - Update `install-branding.sh` or frontend deployment automation scripts to automatically substitute `VITE_PROJECTS_API_URL` during build and branding application.
+   - Update `index.html` cache-busting timestamp (`?v=<timestamp>`) and reload Nginx.
+
+## Projects Service: New Columns Not Appearing on Board or Settings Page ("Not Saving" Illusion)
+
+1. **Symptom:** In project settings (`/projects/:id/settings`) or Kanban board, no workflow columns are displayed. Adding a new column clears the input but nothing appears on screen, giving the illusion that new columns are not saving.
+2. **Cause:**
+   - **Backend (`ProjectService.getProject`):** The `getProject` service previously called `AccessService.getAuthorizedProject` without attaching the project's columns relation (`prisma.column.findMany`), returning `columns: undefined` in `GET /projects/:id`.
+   - **Frontend (`ProjectDetailsPage.tsx`):** The page initialized columns with `setColumns(projData.columns || [])`. Because `projData.columns` was undefined, `columns` always resolved to an empty array `[]`.
+   - The database (`projects.columns`) correctly inserted the new columns, but the frontend views were never provided with the list.
+3. **Resolution:**
+   - **Backend Fix (`evo-projects-service/src/services/project.service.ts`):** Update `ProjectService.getProject` to query columns ordered by position:
+     ```typescript
+     static async getProject(id: string, actor: Actor, expectedWorkspaceId?: string) {
+       const project = await AccessService.getAuthorizedProject(id, actor, 'read_project', expectedWorkspaceId);
+       const columns = await prisma.column.findMany({
+         where: { projectId: project.id },
+         orderBy: { position: 'asc' },
+       });
+       return { ...project, columns };
+     }
+     ```
+   - **Frontend Fix (`evo-ai-frontend-community/src/pages/projects/ProjectDetailsPage.tsx`):** In `loadProjectData`, query `projectsService.listColumns(projectId)` concurrently:
+     ```typescript
+     const [projData, colsData, tasksData] = await Promise.all([
+       projectsService.getProject(projectId),
+       projectsService.listColumns(projectId).catch(() => []),
+       projectsService.listTasks(projectId),
+     ]);
+     setProject(projData);
+     setColumns(colsData?.length ? colsData : (projData.columns || []));
+     setTasks(tasksData);
+     ```
+   - Restart the `evo-projects` service or container. All existing and newly created columns will now render immediately.
+
+

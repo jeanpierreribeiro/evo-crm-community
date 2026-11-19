@@ -1,0 +1,9 @@
+# Chaves de dados pessoais — implementação em andamento
+
+O serviço recebe `LOANS_ENCRYPTION_KEYS_JSON`, `LOANS_ENCRYPTION_KEY_VERSION` e `LOANS_CPF_INDEX_KEY` por configuração segura do ambiente. Para evitar chaves no ambiente do processo, os valores sensíveis podem ser lidos de arquivos montados usando `LOANS_ENCRYPTION_KEYS_JSON_FILE` e `LOANS_CPF_INDEX_KEY_FILE`; não se deve configurar ao mesmo tempo o valor e seu caminho. Os arquivos devem estar acessíveis ao usuário não privilegiado do serviço. Nenhum valor real deve ser incluído no repositório ou nos exemplos. As chaves são independentes, de 32 bytes codificados em base64; o mapa JSON contém versões das chaves de cifragem e a versão atual deve estar presente nele. A montagem e a gestão dos segredos ainda precisam ser ensaiadas no ambiente de implantação.
+
+CPF e RG são cifrados com AES-256-GCM, com autenticação vinculada à carteira, ao campo e à versão. Uma chave HMAC separada gera o índice de igualdade de CPF válido dentro de cada carteira e o hash de operações que envolvem esses dados; CPF ausente ou inválido não recebe índice de unicidade. Registros não guardam a chave.
+
+Uma impressão criptográfica da chave de índice é registrada no banco. Se uma chave diferente for configurada, novas gravações de cliente são bloqueadas em vez de permitir duplicidade silenciosa. **Ainda não existe procedimento de rotação da chave do índice**: não trocá-la sem implementar e ensaiar uma migração que preserve a unicidade e os resultados idempotentes. A rotação da chave de cifragem admite ler versões anteriores desde que elas continuem disponíveis, mas ainda requer procedimento e ensaio completos.
+
+Sem as três configurações válidas, a criação de clientes fica indisponível. Antes de uso real, concluir máscara, visualização auditada, anexos, gestão segura de chaves, backup/restauração e testes de rotação. O recurso continua sujeito aos gates e aos débitos técnicos de Empréstimos.

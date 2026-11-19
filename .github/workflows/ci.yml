@@ -95,3 +95,73 @@ jobs:
       - name: Run Vitest Suite
         working-directory: ./evo-projects-service
         run: pnpm test
+
+  test-loans-service:
+    name: Test Loans Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: evo-loans-service/package-lock.json
+      - name: Install dependencies
+        working-directory: ./evo-loans-service
+        run: npm ci
+      - name: Build and unit tests
+        working-directory: ./evo-loans-service
+        run: npm test
+      - name: Disposable PostgreSQL migration and isolation tests
+        working-directory: ./evo-loans-service
+        run: npm run test:db
+
+  test-loans-frontend:
+    name: Test Loans Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: evo-ai-frontend-community/package-lock.json
+      - name: Install dependencies
+        working-directory: ./evo-ai-frontend-community
+        run: npm ci
+      - name: Test wallet UI and token retry
+        working-directory: ./evo-ai-frontend-community
+        run: npm test -- src/pages/loans/LoansWalletsPage.spec.tsx src/pages/loans/LoansClientsPanel.spec.tsx src/pages/loans/LoansAttachments.spec.tsx src/pages/loans/LoansSettingsPanel.spec.tsx src/pages/loans/LoansSimulation.spec.tsx src/pages/loans/LoansDrafts.spec.tsx src/pages/loans/LoansContracts.spec.tsx src/pages/loans/LoansCancellationPreview.spec.tsx src/pages/loans/LoansLoss.spec.tsx src/pages/loans/LoansLossCorrection.spec.tsx src/pages/loans/LoansRecovery.spec.tsx src/pages/loans/LoansAdjustments.spec.tsx src/pages/loans/LoansExtension.spec.tsx src/pages/loans/LoansNegotiation.spec.tsx src/pages/loans/LoansInterestAttribution.spec.tsx src/pages/loans/LoansHistorical.spec.tsx src/pages/loans/LoansInstallments.spec.tsx src/pages/loans/LoansBatchPreview.spec.tsx src/pages/loans/LoansBatchRecovery.spec.tsx src/pages/loans/LoansClientFile.spec.tsx src/services/loans/loansBatchJournal.spec.ts src/services/loans/loansApi.spec.ts src/services/loans/loansConfig.spec.ts src/services/loans/loansBaseUrl.spec.ts
+      - name: Build with runtime placeholders
+        working-directory: ./evo-ai-frontend-community
+        env:
+          VITE_LOANS_API_URL: VITE_LOANS_API_URL_PLACEHOLDER
+          VITE_LOANS_UI_ENABLED: VITE_LOANS_UI_ENABLED_PLACEHOLDER
+        run: |
+          npm run build
+          grep -q -r 'VITE_LOANS_API_URL_PLACEHOLDER' dist/assets --include='*.js'
+          grep -q -r 'VITE_LOANS_UI_ENABLED_PLACEHOLDER' dist/assets --include='*.js'
+          node scripts/test-loans-runtime.mjs
+
+  test-loans-auth-integration:
+    name: Test Loans and Auth Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: evo-loans-service/package-lock.json
+      - name: Build disposable Auth test image
+        run: docker build -t jpros-evo-auth:latest ./evo-auth-service-community
+      - name: Install loans dependencies
+        working-directory: ./evo-loans-service
+        run: npm ci
+      - name: Test with disposable Auth and PostgreSQL
+        working-directory: ./evo-loans-service
+        run: npm run test:auth:e2e

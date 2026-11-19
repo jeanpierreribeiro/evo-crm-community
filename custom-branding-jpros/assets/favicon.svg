@@ -1,0 +1,14 @@
+<svg width="240" height="70" viewBox="0 0 240 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="jprGradientDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#60A5FA" />
+    </linearGradient>
+  </defs>
+  <!-- jpr in bold blue/cyan -->
+  <text x="5" y="52" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="900" fill="url(#jprGradientDark)" letter-spacing="-1.5">jpr</text>
+  <!-- OS in clean white -->
+  <text x="80" y="52" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="800" fill="#FFFFFF" letter-spacing="-0.5">OS</text>
+  <!-- subtle dot/accent -->
+  <circle cx="165" cy="46" r="5" fill="#3B82F6" />
+</svg>

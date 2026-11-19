@@ -488,6 +488,76 @@ docker compose up -d --no-deps --build evo-scheduling
 docker compose up -d --no-deps --build evo-frontend
 ```
 
+---
+
+## 9. Inteligência Artificial e Tópicos de Reuniões (Tsuria Engine Integration)
+
+A partir da versão v2.0 (`agenda-reunioes-ia`), o módulo incorpora inteligência artificial para resumir reuniões gravadas ou transcritas (via Google Meet, Microsoft Teams ou áudios processados no Gemini) e estruturar automaticamente **8 blocos de tópicos estratégicos**.
+
+### 9.1 Os 8 Blocos de Tópicos
+1. **Assunto (`topic`)**: Parágrafo executivo sintetizando a finalidade e o objetivo central da conversa.
+2. **Participantes (`participants`)**: Lista nominal dos intervenientes presentes.
+3. **Principais Pontos (`keyPoints`)**: Tópicos discutidos e alinhamentos operacionais relevantes.
+4. **Decisões (`decisions`)**: Deliberações acordadas durante a chamada.
+5. **Aprendizados (`learnings`)**: Conclusões, descobertas e lições aprendidas.
+6. **Fatos e Números (`factsAndFigures`)**: Indicadores quantitativos, prazos, métricas, valores financeiros e percentuais citados.
+7. **Próximos Passos (`nextSteps`)**: Lista de alinhamentos e encaminhamentos em texto puro.  
+   *(Nota de Escopo: não gera tarefas automáticas no módulo de projetos a pedido explícito do usuário).*
+8. **Clientes e Projetos Citados (`mentionedEntities`)**: Entidades corporativas ou iniciativas mencionadas.
+
+### 9.2 Arquitetura de Processamento Assíncrono (HTTP 202 Accepted)
+Para acomodar transcrições longas (até 120.000 caracteres) sem timeout HTTP no cliente:
+- `POST /api/v1/scheduling/bookings/:id/summary/generate`:
+  - Retorna imediatamente `HTTP 202 Accepted` com status `PENDING`.
+  - Processa a inferência em background através de `MeetingAiClient`.
+  - Atualiza o registro em `scheduling.meeting_summaries` para `DONE` ou `FAILED`.
+  - O frontend realiza polling a cada 3 segundos enquanto o status for `PENDING`.
+  - Tarefas órfãs há mais de 10 minutos são automaticamente recuperadas ou sinalizadas como falha.
+
+### 9.3 Mitigação de Perda de Dados (R04) e Edição Parcial
+- A rota `PUT /api/v1/scheduling/bookings/:id/summary` utiliza esquemas Zod sem padrões destrutivos e a função utilitária `mergeTopics`.
+- Se o usuário editar apenas um bloco (ex: adicionar uma nova decisão), os outros 7 blocos e as URLs externas de resumo/transcrição são 100% preservados.
+
+### 9.4 Provedores de IA Suportados
+O cliente HTTP do servidor (`src/meetings/ai/client.ts`) é compatível com o protocolo OpenAI Chat Completions, suportando:
+- **OpenRouter** (`https://openrouter.ai/api/v1`)
+- **OpenAI Nativo** (`https://api.openai.com/v1`)
+- **Google Gemini** (via endpoint de compatibilidade OpenAI `https://generativelanguage.googleapis.com/v1beta/openai/`)
+- **Proxies Locais ou Customizados**
+
+Configurável via variáveis de ambiente (`MEETING_AI_BASE_URL`, `MEETING_AI_API_KEY`, `MEETING_AI_MODEL`). A rota pública `GET /api/v1/scheduling/meetings/ai-status` informa o status e modelo ativo sem vazar chaves de API.
+
+---
+
+## 10. Segurança e Proteção de Rotas (Fase 0)
+
+Para garantir proteção multinível no ambiente comunitário e de produção:
+1. **Autenticação JWT (`jose`)**:
+   - Todas as rotas administrativas (`/bookings`, `/bookings/:id`, `/schedules`, `/event-types`, `/bookings/:id/summary`) exigem Bearer token assinado com `JWT_SECRET_KEY`.
+   - O identificador do usuário é estritamente derivado de `request.user.sub` ou `request.user.id`, impedindo manipulação de contexto entre tenants.
+2. **Token de Serviço (`SCHEDULING_SERVICE_TOKEN`)**:
+   - Permite que o bot do WhatsApp (`evo-bot-runtime`) execute operações com cabeçalho `X-Service-Token`.
+3. **Travas Concorrentes (`pg_advisory_xact_lock`)**:
+   - Transações de reserva e reagendamento adquirem trava determinística sobre o hash do ID do usuário, prevenindo double-booking sob alta concorrência.
+4. **Auto-Reagendamento Seguro (`excludeBookingId`)**:
+   - O motor de slots ignora a própria reserva existente ao calcular slots livres para reagendamento, resolvendo o bug R06 onde o compromisso original bloqueava a si mesmo.
+5. **Validação Estrita de URLs Externas**:
+   - Links para Google Drive / Transcrições rejeitam esquemas perigosos (`javascript:`, `data:`, `file:`, `http://`) e exigem estritamente `https://`.
+
+---
+
+## 11. Interface de Usuário Reformulada
+
+A interface em `evo-ai-frontend-community` passou por modernização completa baseada na referência de mercado:
+- **Lista Executiva Horizontal (`BookingsPage.tsx`)**:
+  - Linhas horizontais com espaçamento refinado, ícones indicativos, badge de tópicos com IA, link direto para WhatsApp (`https://wa.me/55...`) e modal integrado de reagendamento.
+  - Barra de filtros com busca textual debounced (300ms), filtro por período (`De` / `Até`), tipo de evento e abas de status sincronizados na URL.
+- **Página de Detalhe da Reunião (`BookingDetailPage.tsx`)**:
+  - Rota `/scheduling/bookings/:id`.
+  - Cabeçalho com título editável inline, metadados da reunião e botões de acesso direto ao Google Drive (`Resumo completo ↗` e `Transcrição ↗`).
+  - Painéis com design executivo para os 8 blocos de tópicos com botão de edição inline independente para cada bloco.
+  - Modal para colagem de transcrição ampla (até 120.000 caracteres) com feedback em tempo real.
+
 ### 8.4 Próximas Extensões Planejadas no Roadmap:
 - **Sincronização Bidirecional com Google Calendar / Outlook**:
   - Salvar tokens OAuth na tabela `User` ou criar tabela `ConnectedCalendar`.

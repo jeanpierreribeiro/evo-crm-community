@@ -1,0 +1,55 @@
+# Override opcional para Swarm: somente após provisionamento e migração verificada.
+# Carregar com docker-compose.swarm.yaml; não publica porta de Empréstimos.
+services:
+  evocrm_gateway:
+    image: ${LOANS_GATEWAY_IMAGE:?Configure a imagem do gateway com suporte a Empréstimos}
+    environment:
+      LOANS_UPSTREAM: evocrm_loans:3005
+
+  evocrm_frontend:
+    image: ${LOANS_FRONTEND_IMAGE:?Configure a imagem do frontend com suporte a Empréstimos}
+    environment:
+      VITE_LOANS_API_URL: ${LOANS_PUBLIC_API_URL:?Configure a URL pública do gateway}
+      VITE_LOANS_UI_ENABLED: ${LOANS_UI_ENABLED:-false}
+
+  evocrm_auth:
+    image: ${LOANS_AUTH_IMAGE:?Configure a imagem do Auth com diretório restrito}
+    environment:
+      LOANS_DIRECTORY_KEY: ${LOANS_DIRECTORY_KEY:?Configure a credencial dedicada ao diretório}
+
+  evocrm_loans:
+    image: ${LOANS_IMAGE:?Configure a imagem do serviço de Empréstimos}
+    environment:
+      PORT: "3005"
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      DATABASE_URL: ${LOANS_APP_DATABASE_URL:?Configure a URL do papel de aplicação}
+      JWT_SECRET_KEY: ${LOANS_JWT_SECRET_KEY:?Configure a chave do Auth}
+      LOANS_DIRECTORY_KEY: ${LOANS_DIRECTORY_KEY:?Configure a credencial dedicada ao diretório}
+      JWT_ISS: ${LOANS_JWT_ISS:-evo-auth-service}
+      LOANS_ENCRYPTION_KEYS_JSON: ${LOANS_ENCRYPTION_KEYS_JSON:-}
+      LOANS_ENCRYPTION_KEY_VERSION: ${LOANS_ENCRYPTION_KEY_VERSION:-}
+      LOANS_CPF_INDEX_KEY: ${LOANS_CPF_INDEX_KEY:-}
+      LOANS_ENCRYPTION_KEYS_JSON_FILE: ${LOANS_ENCRYPTION_KEYS_JSON_FILE:-}
+      LOANS_CPF_INDEX_KEY_FILE: ${LOANS_CPF_INDEX_KEY_FILE:-}
+      LOANS_ATTACHMENTS_DIR: /var/lib/loans/attachments
+      JWT_AUD: ${LOANS_JWT_AUD:-[]}
+      EVO_AUTH_SERVICE_URL: http://evocrm_auth:3001
+      CORS_ORIGINS: ${LOANS_CORS_ORIGINS:?Configure origens autorizadas}
+      LOANS_ENABLED: ${LOANS_ENABLED:-false}
+      LOANS_CONTRACT_CONFIRM_ENABLED: ${LOANS_CONTRACT_CONFIRM_ENABLED:-false}
+    volumes:
+      - loans_attachments:/var/lib/loans/attachments
+    networks:
+      - evonet
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.hostname == ${LOANS_SWARM_NODE_HOSTNAME:?Configure o nó que contém o volume de anexos}
+
+volumes:
+  loans_attachments:
+    external: true
+    name: ${LOANS_ATTACHMENTS_VOLUME:?Configure o volume persistente de anexos}

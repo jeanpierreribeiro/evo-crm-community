@@ -63,6 +63,10 @@ for js_file in "$ASSETS_DIR"/*.js; do
     sed -i 's/EVO_CRM-BPOP0TvS\.svg/jpros-logo-dark-v1\.svg/g' "$js_file" 2>/dev/null || true
     sed -i 's/EVO_CRM_light-6_wHNvBP\.svg/jpros-logo-light-v1\.svg/g' "$js_file" 2>/dev/null || true
     
+    # Sanitização de URLs de microsserviços para evitar Mixed Content e Network Error
+    sed -i 's|http://localhost:3013|https://api-homologar.jeanpierreribeiro.com.br|g' "$js_file" 2>/dev/null || true
+    sed -i 's|http://localhost:3012|https://api-homologar.jeanpierreribeiro.com.br|g' "$js_file" 2>/dev/null || true
+
     # Substituir marca textual de rodapé padrão
     sed -i 's/Evolution Foundation/jprOS/g' "$js_file" 2>/dev/null || true
 

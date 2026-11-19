@@ -1,0 +1,79 @@
+/* ========================================================
+   jprOS Visual Identity & Theme Overrides (Evo CRM Custom)
+   Primary Brand Color: #3B82F6 (Hover: #2563EB)
+   ======================================================== */
+
+:root, .dark, html, body, [data-theme] {
+  --primary: #3B82F6 !important;
+  --primary-foreground: #ffffff !important;
+  --color-primary: #3B82F6 !important;
+  --color-primary-foreground: #ffffff !important;
+  --sidebar-primary: #3B82F6 !important;
+  --sidebar-ring: #3B82F6 !important;
+}
+
+/* Primary Action Buttons */
+button.bg-primary,
+.bg-primary:not(input):not(textarea):not(select),
+.dark button.bg-primary,
+.dark .bg-primary:not(input):not(textarea):not(select),
+.bg-\[\#00ffa7\],
+.bg-\[\#00FFA7\] {
+  background-color: #3B82F6 !important;
+  color: #ffffff !important;
+}
+
+button.bg-primary:hover,
+.hover\:bg-primary\/90:hover:not(input),
+.bg-primary:hover:not(input) {
+  background-color: #2563EB !important;
+  color: #ffffff !important;
+}
+
+/* Typography & Borders */
+.text-primary {
+  color: #3B82F6 !important;
+}
+
+.border-primary {
+  border-color: #3B82F6 !important;
+}
+
+/* Active Sidebar Navigation Item */
+.bg-primary\/10,
+.bg-primary\/15,
+.bg-primary\/20,
+a.bg-primary\/15 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #3B82F6 !important;
+  border-left-color: #3B82F6 !important;
+}
+
+/* Form Input Fields (Email, Password, Search, Textarea, Select)
+   Keeps background dark/transparent with crystal-clear white text */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea,
+select {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):focus,
+textarea:focus,
+select:focus {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  border-color: #3B82F6 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+/* WebKit/Chrome Password & Credential Autofill Dark Mode Fix */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0px 1000px #0f172a inset !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}

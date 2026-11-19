@@ -27,6 +27,7 @@ jobs:
       bot_runtime: ${{ steps.filter.outputs.bot_runtime }}
       flow: ${{ steps.filter.outputs.flow }}
       gateway: ${{ steps.filter.outputs.gateway }}
+      loans: ${{ steps.filter.outputs.loans }}
       force_all: ${{ steps.check-force.outputs.force_all }}
     steps:
       - name: Checkout Code
@@ -64,6 +65,8 @@ jobs:
               - 'evo-flow-community/**'
             gateway:
               - 'nginx/**'
+            loans:
+              - 'evo-loans-service/**'
 
   build-and-push:
     name: Build ${{ matrix.name }}
@@ -105,6 +108,10 @@ jobs:
             name: evo-crm-gateway
             context: ./nginx
             dockerfile: ./nginx/Dockerfile
+          - id: loans
+            name: evo-loans-service
+            context: ./evo-loans-service
+            dockerfile: ./evo-loans-service/Dockerfile
 
     steps:
       - name: Verificar se este servico precisa de build
@@ -120,6 +127,7 @@ jobs:
           CHANGED_BOT_RUNTIME: ${{ needs.detect-changes.outputs.bot_runtime }}
           CHANGED_FLOW: ${{ needs.detect-changes.outputs.flow }}
           CHANGED_GATEWAY: ${{ needs.detect-changes.outputs.gateway }}
+          CHANGED_LOANS: ${{ needs.detect-changes.outputs.loans }}
         run: |
           if [ "$FORCE" = "true" ]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
@@ -136,6 +144,7 @@ jobs:
             bot_runtime) CHANGED="$CHANGED_BOT_RUNTIME" ;;
             flow) CHANGED="$CHANGED_FLOW" ;;
             gateway) CHANGED="$CHANGED_GATEWAY" ;;
+            loans) CHANGED="$CHANGED_LOANS" ;;
             *) CHANGED="false" ;;
           esac
           
